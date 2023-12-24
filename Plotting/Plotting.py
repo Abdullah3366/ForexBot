@@ -66,4 +66,4 @@ fig.update_layout(
     paper_bgcolor="#1e1e1e"
     )
 
-#fig.show()
+fig.show()
