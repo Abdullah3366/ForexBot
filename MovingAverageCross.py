@@ -1,6 +1,8 @@
 import plotly.graph_objects as go
 from finta import TA
 import pandas as pd 
+import PlotGraph
+
 
 df = pd.read_pickle('./His_USDJPY_4H_2023.pkl')
 
@@ -11,16 +13,27 @@ def is_trade(row):
         return True
     return False
 
+def add_SMA(df, period):
+    for pr in period:
+        df[f"SMA_{pr}"] = TA.SMA(df, int(pr))
 
-#df_500 = df.iloc[-500:].copy()
+def add_EMA(df, period):
+    for pr in period:
+        df[f"EMA_{pr}"] = TA.EMA(df, int(pr))
+
+
 df_bid = df['bid'].copy()
 
-df_bid['MA16'] = TA.SMA(df_bid, 16)
-df_bid['MA64'] = TA.SMA(df_bid, 64)
-df_bid['EMA5'] = TA.EMA(df_bid, 5)
+SMA_list = ["16", "32"]
+EMA_list = ["16", "32"]
+
+add_SMA(df_bid, SMA_list)
+add_EMA(df_bid, EMA_list)
+
+PlotGraph.plot(df_bid, SMA_list, EMA_list)
 
 
-df_bid['DIFF'] = df_bid.MA16 - df_bid.MA64
+df_bid['DIFF'] = df_bid.SMA_16 - df_bid.SMA_32
 df_bid['DIFF_Prev'] = df_bid.DIFF.shift(1)
 
 df_bid['IS_TRADE'] = df_bid.apply(is_trade, axis=1)
