@@ -40,9 +40,9 @@ def main():
     print("accounts:\n%s" % accounts)
     
     
-    epic = "CS.D.USDJPY.CFD.IP" 
-    resolution = "D"
-    num_points = 10
+    epic = "CS.D.NZDUSD.CFD.IP" 
+    resolution = "1h"
+    num_points = 10000
 
     
     response = ig_service.fetch_historical_prices_by_epic_and_num_points(
@@ -55,7 +55,7 @@ def main():
     # epic, resolution, start_date, end_date
     #)
 
-    #response["prices"].to_pickle("./His_USDJPY.pkl") 
+    response["prices"].to_pickle("./His_NZDUSD_1H_2023.pkl") 
     print(response)
 
 if __name__ == "__main__":

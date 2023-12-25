@@ -5,6 +5,6 @@
 class config(object):
     username = "Abdullah3366"
     password = "Chughtai123"
-    api_key = "5a8ade404bcd92e18dbb9ae1f23a26ea65da0aa7"
+    api_key = "61726ac6ccdc6be4404e00f577adf83376e1437d"
     acc_type = "LIVE"  # LIVE / DEMO
     acc_number = "TVKZC"
