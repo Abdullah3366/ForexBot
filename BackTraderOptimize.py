@@ -6,27 +6,28 @@ import os.path  # To manage paths
 import sys  # To find out the script name (in argv[0])
 
 import pandas as pd
+
 # Import the backtrader platform
 import backtrader as bt
-import backtrader.analyzers as btanalyzers
 
 
 # Create a Stratey
 class TestStrategy(bt.Strategy):
     params = (
-        ('maperiod', 64),
+        ('maperiod', 15),
+        ('printlog', False),
+         ('sma1', 16),
+        ('sma2', 64),
         ('stop_pct', 0.05),
         ('target_risk', 0.1),
         ('capital', 100000)
     )
 
-    positiontype = "None"
-    OrderPrice = 0
-
-    def log(self, txt, dt=None):
+    def log(self, txt, dt=None, doprint=False):
         ''' Logging function fot this strategy'''
-        dt = dt or self.datas[0].datetime.date(0)
-        print('%s, %s' % (dt.isoformat(), txt))
+        if self.params.printlog or doprint:
+            dt = dt or self.datas[0].datetime.date(0)
+            print('%s, %s' % (dt.isoformat(), txt))
 
     def __init__(self):
         # Keep a reference to the "close" line in the data[0] dataseries
@@ -36,23 +37,13 @@ class TestStrategy(bt.Strategy):
         self.order = None
         self.buyprice = None
         self.buycomm = None
-        #self.order_target_size = 100000
+        self.order_target_size = 100000
         self.stop_pct = self.params.stop_pct
         self.target_risk = self.params.target_risk
 
         # Add a MovingAverageSimple indicator
         self.sma = bt.indicators.SimpleMovingAverage(
             self.datas[0], period=self.params.maperiod)
-
-        # Indicators for the plotting show
-        #bt.indicators.ExponentialMovingAverage(self.datas[0], period=25)
-        #bt.indicators.WeightedMovingAverage(self.datas[0], period=32,
-        #                                    subplot=True)
-        #bt.indicators.StochasticSlow(self.datas[0])
-        bt.indicators.MACDHisto(self.datas[0])
-        #rsi = bt.indicators.RSI(self.datas[0])
-        #bt.indicators.SmoothedMovingAverage(rsi, period=10)
-        #bt.indicators.ATR(self.datas[0], plot=False)
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -64,7 +55,7 @@ class TestStrategy(bt.Strategy):
         if order.status in [order.Completed]:
             if order.isbuy():
                 self.log(
-                    'BUY EXECUTED, Price: %.4f, Cost: %.2f, Comm %.2f' %
+                    'BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
                     (order.executed.price,
                      order.executed.value,
                      order.executed.comm))
@@ -72,7 +63,7 @@ class TestStrategy(bt.Strategy):
                 self.buyprice = order.executed.price
                 self.buycomm = order.executed.comm
             else:  # Sell
-                self.log('SELL EXECUTED, Price: %.4f, Cost: %.2f, Comm %.2f' %
+                self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
                          (order.executed.price,
                           order.executed.value,
                           order.executed.comm))
@@ -94,11 +85,10 @@ class TestStrategy(bt.Strategy):
 
     def next(self):
         # Simply log the closing price of the series from the reference
-        #self.log('Close, %.2f' % self.dataclose[0])
+        self.log('Close, %.2f' % self.dataclose[0])
 
         # Check if an order is pending ... if yes, we cannot send a 2nd one
         if self.order:
-            print("We have an order pending")
             return
 
         # Check if we are in the market
@@ -112,83 +102,48 @@ class TestStrategy(bt.Strategy):
 
                 # Keep track of the created order to avoid a 2nd order
                 self.order = self.buy()
-                TestStrategy.positiontype = "Buy"
-                TestStrategy.OrderPrice = self.dataclose[0]
-                return
 
-             # Not yet ... we MIGHT SELL if ...
+        else:
+
             if self.dataclose[0] < self.sma[0]:
-
-                # BUY, BUY, BUY!!! (with all possible default parameters)
+                # SELL, SELL, SELL!!! (with all possible default parameters)
                 self.log('SELL CREATE, %.2f' % self.dataclose[0])
 
                 # Keep track of the created order to avoid a 2nd order
                 self.order = self.sell()
-                TestStrategy.positiontype = "Sell"
-                TestStrategy.OrderPrice = self.dataclose[0]
-                return
 
-        else:
-
-            #print(TestStrategy.positiontype)
-
-            if TestStrategy.positiontype == "Buy":
-
-                 if self.dataclose[0] < self.sma[0]:
-                    if self.dataclose[0] > TestStrategy.OrderPrice:
-                        # SELL, SELL, SELL!!! (with all possible default parameters)
-                        self.log('SELL CREATE, %.2f' % self.dataclose[0])
-
-                        # Keep track of the created order to avoid a 2nd order
-                        self.order = self.close()
-
-            if TestStrategy.positiontype == "Sell":
-
-                 if self.dataclose[0] > self.sma[0]:
-                    if self.dataclose[0] < TestStrategy.OrderPrice:
-                        # SELL, SELL, SELL!!! (with all possible default parameters)
-                        self.log('BUY CREATE, %.2f' % self.dataclose[0])
-
-                        # Keep track of the created order to avoid a 2nd order
-                        self.order = self.close()
-
+    def stop(self):
+        self.log('(MA Period %2d) Ending Value %.2f' %
+                 (self.params.maperiod, self.broker.getvalue()), doprint=True)
 
 
 if __name__ == '__main__':
+    # Create a cerebro entity
     cerebro = bt.Cerebro()
 
-    cerebro.addstrategy(TestStrategy)
-    cerebro.addanalyzer(btanalyzers.SharpeRatio,  _name='mysharpe')
-    
     df = pd.read_pickle('./His_EURUSD_4H_2023.pkl')
     df_bid = df['bid'].copy()
     df_bid['Volume']= df['last']['Volume']
-    print(df_bid)
-    
+
+    # Add a strategy
+    strats = cerebro.optstrategy(
+        TestStrategy,
+        maperiod=range(10, 64))
+
+    # Create a Data Feed
     data = bt.feeds.PandasData(dataname=df_bid)
 
-  # Add the Data Feed to Cerebro
+    # Add the Data Feed to Cerebro
     cerebro.adddata(data)
 
     # Set our desired cash start
     cerebro.broker.setcash(50000.0)
 
-     # Set the commission
-    cerebro.broker.setcommission(commission=0.0001, leverage = 30)
-
     # Add a FixedSize sizer according to the stake
     cerebro.addsizer(bt.sizers.FixedSize, stake=100000)
 
-    # Print out the starting conditions
-    print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
+    # Set the commission
+    cerebro.broker.setcommission(commission=0.001, leverage = 30)
 
     # Run over everything
-    thestrats = cerebro.run()
-    thestrat = thestrats[0]
-
-    # Print out the final result
-    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
-    print('Sharpe Ratio:', thestrat.analyzers.get_analysis())
-
-    # Plot the result
-    cerebro.plot()
+    cerebro.run(maxcpus=1)
